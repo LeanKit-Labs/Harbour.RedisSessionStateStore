@@ -1,16 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Reflection;
-using ServiceStack.Redis;
+﻿using ServiceStack.Redis;
+using System;
 
 namespace Harbour.RedisSessionStateStore.Tests
 {
     public abstract class RedisTest : IDisposable
     {
         // TODO: Should be different than development port!
-        protected virtual string Host { get { return "127.0.0.1:6379"; } }
+        protected virtual string Host { get { return "172.16.83.1:6379"; } }
 
         public IRedisClientsManager ClientManager { get; protected set; }
 
@@ -18,21 +14,21 @@ namespace Harbour.RedisSessionStateStore.Tests
 
         protected RedisTest()
         {
-            this.ClientManager = new BasicRedisClientManager(this.Host);
-            this.redis = this.GetRedisClient();
+            ClientManager = new BasicRedisClientManager(Host);
+            redis = GetRedisClient();
         }
 
         protected virtual IRedisClient GetRedisClient()
         {
-            var client = this.ClientManager.GetClient();
+            var client = ClientManager.GetClient();
             client.FlushAll();
             return client;
         }
 
         public virtual void Dispose()
         {
-            this.redis.Dispose();
-            this.ClientManager.Dispose();
+            redis.Dispose();
+            ClientManager.Dispose();
         }
     }
 }

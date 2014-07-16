@@ -1,9 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Web.SessionState;
 using System.IO;
+using System.Web.SessionState;
 
 namespace Harbour.RedisSessionStateStore
 {
@@ -19,27 +17,27 @@ namespace Harbour.RedisSessionStateStore
 
         internal RedisSessionState()
         {
-            this.Items = new SessionStateItemCollection();
-            this.Locked = false;
-            this.Created = DateTime.UtcNow;
+            Items = new SessionStateItemCollection();
+            Locked = false;
+            Created = DateTime.UtcNow;
         }
 
         public IDictionary<string, byte[]> ToMap()
         {
             var map = new Dictionary<string, byte[]>()
             {
-                { "created", BitConverter.GetBytes(this.Created.Ticks) },
-                { "locked", BitConverter.GetBytes(this.Locked) },
-                { "lockId", this.Locked ? BitConverter.GetBytes(this.LockId) : new byte[0] },
-                { "lockDate", this.Locked ? BitConverter.GetBytes(this.LockDate.Ticks) : new byte[0] },
-                { "timeout", BitConverter.GetBytes(this.Timeout) },
-                { "flags", BitConverter.GetBytes((int)this.Flags) }
+                { "created", BitConverter.GetBytes(Created.Ticks) },
+                { "locked", BitConverter.GetBytes(Locked) },
+                { "lockId", Locked ? BitConverter.GetBytes(LockId) : new byte[0] },
+                { "lockDate", Locked ? BitConverter.GetBytes(LockDate.Ticks) : new byte[0] },
+                { "timeout", BitConverter.GetBytes(Timeout) },
+                { "flags", BitConverter.GetBytes((int)Flags) }
             };
 
             using (var ms = new MemoryStream())
             using (var writer = new BinaryWriter(ms))
             {
-                this.Items.Serialize(writer);
+                Items.Serialize(writer);
                 map["items"] = ms.ToArray();
                 writer.Close();
             }

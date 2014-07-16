@@ -1,15 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using Xunit;
-using System.Collections.Specialized;
+﻿using Moq;
 using ServiceStack.Redis;
-using Xunit.Extensions;
-using System.Web;
-using Moq;
-using System.Web.SessionState;
+using System;
 using System.Collections;
+using System.Collections.Generic;
+using System.Collections.Specialized;
+using System.Globalization;
+using System.Linq;
+using System.Web;
+using System.Web.SessionState;
+using Xunit;
+using Xunit.Extensions;
 
 namespace Harbour.RedisSessionStateStore.Tests
 {
@@ -22,9 +22,9 @@ namespace Harbour.RedisSessionStateStore.Tests
 
         public RedisSessionStateStoreProviderTests()
         {
-            this.itemsA = new SessionStateItemCollection();
-            this.itemsA["name"] = "Felix";
-            this.itemsA["age"] = 1;
+            itemsA = new SessionStateItemCollection();
+            itemsA["name"] = "Felix";
+            itemsA["age"] = 1;
         }
 
         [Fact]
@@ -76,7 +76,7 @@ namespace Harbour.RedisSessionStateStore.Tests
         [Fact]
         public void SetItemExpireCallback_is_not_supported()
         {
-            Assert.False(this.CreateProvider().SetItemExpireCallback((x, y) => { } ));
+            Assert.False(CreateProvider().SetItemExpireCallback((x, y) => { } ));
         }
 
         [Fact]
@@ -93,7 +93,7 @@ namespace Harbour.RedisSessionStateStore.Tests
         [Fact]
         public void ResetItemTimeout()
         {
-            var provider = this.CreateProvider();
+            var provider = CreateProvider();
 
             redis.SetSessionState(key, new RedisSessionState());
             redis.ExpireEntryIn(key, TimeSpan.FromMinutes(10));
@@ -108,7 +108,7 @@ namespace Harbour.RedisSessionStateStore.Tests
         [Fact]
         public void RemoveItem_should_remove_if_lockId_matches()
         {
-            var provider = this.CreateProvider();
+            var provider = CreateProvider();
             redis.SetSessionState(key, new RedisSessionState()
             {
                 Locked = true,
@@ -123,7 +123,7 @@ namespace Harbour.RedisSessionStateStore.Tests
         [Fact]
         public void RemoveItem_should_not_remove_if_lockId_does_not_match()
         {
-            var provider = this.CreateProvider();
+            var provider = CreateProvider();
             redis.SetSessionState(key, new RedisSessionState()
             {
                 Locked = true,
@@ -138,7 +138,7 @@ namespace Harbour.RedisSessionStateStore.Tests
         [Fact]
         public void RemoveItem_should_not_remove_if_session_id_does_not_exist()
         {
-            var provider = this.CreateProvider();
+            var provider = CreateProvider();
             redis.SetSessionState(key, new RedisSessionState()
             {
                 Locked = true,
@@ -153,7 +153,7 @@ namespace Harbour.RedisSessionStateStore.Tests
         [Fact]
         public void ReleaseItemExclusive_should_not_remove_lock_if_lockId_does_not_match()
         {
-            var provider = this.CreateProvider();
+            var provider = CreateProvider();
 
             var lockDate = DateTime.UtcNow;
 
@@ -171,7 +171,7 @@ namespace Harbour.RedisSessionStateStore.Tests
         [Fact]
         public void ReleaseItemExclusive_should_not_remove_lock_if_session_id_does_not_exist()
         {
-            var provider = this.CreateProvider();
+            var provider = CreateProvider();
 
             var lockDate = DateTime.UtcNow;
 
@@ -189,7 +189,7 @@ namespace Harbour.RedisSessionStateStore.Tests
         [Fact]
         public void ReleaseItemExclusive_should_clear_lock_and_reset_timeout_for_locked_session()
         {
-            var provider = this.CreateProvider();
+            var provider = CreateProvider();
             var lockDate = DateTime.UtcNow;
 
             redis.SetSessionState(key, new RedisSessionState()
@@ -207,9 +207,9 @@ namespace Harbour.RedisSessionStateStore.Tests
         [Fact]
         public void SetAndReleaseItemExclusive_should_add_new_item_and_set_timeout_if_newItem_is_true()
         {
-            var provider = this.CreateProvider();
+            var provider = CreateProvider();
 
-            var item = this.CreateSessionStoreData(333, new Dictionary<string, object>()
+            var item = CreateSessionStoreData(333, new Dictionary<string, object>()
             {
                 { "name", "Felix" },
                 { "age", 1 }
@@ -231,7 +231,7 @@ namespace Harbour.RedisSessionStateStore.Tests
         [Fact]
         public void SetAndReleaseItemExclusive_should_not_update_if_lock_id_does_not_match()
         {
-            var provider = this.CreateProvider();
+            var provider = CreateProvider();
 
             var lockDate = DateTime.UtcNow;
             var validLockId = 999;
@@ -242,7 +242,7 @@ namespace Harbour.RedisSessionStateStore.Tests
                 Locked = true, LockId = validLockId, LockDate = lockDate
             });
 
-            var item = this.CreateSessionStoreData(333, new Dictionary<string, object>());
+            var item = CreateSessionStoreData(333, new Dictionary<string, object>());
 
             provider.SetAndReleaseItemExclusive(null, "1234", item, invalidLockId, false);
 
@@ -253,7 +253,7 @@ namespace Harbour.RedisSessionStateStore.Tests
         [Fact]
         public void SetAndReleaseItemExclusive_should_update_items_and_release_lock_for_locked_session()
         {
-            var provider = this.CreateProvider();
+            var provider = CreateProvider();
 
             redis.SetSessionState(key, new RedisSessionState()
             {
@@ -263,7 +263,7 @@ namespace Harbour.RedisSessionStateStore.Tests
                 Items = itemsA
             });
 
-            var updatedItems = this.CreateSessionStoreData(999, new Dictionary<string, object>()
+            var updatedItems = CreateSessionStoreData(999, new Dictionary<string, object>()
             {
                 { "name", "Daisy" },
                 { "age", 3 }
@@ -283,7 +283,7 @@ namespace Harbour.RedisSessionStateStore.Tests
         [Fact]
         public void GetItem_should_return_null_and_not_locked_if_no_session_item_is_found()
         {
-            var provider = this.CreateProvider();
+            var provider = CreateProvider();
 
             bool locked;
             TimeSpan lockAge;
@@ -300,7 +300,7 @@ namespace Harbour.RedisSessionStateStore.Tests
         [Fact]
         public void GetItem_should_return_null_and_locked_if_session_item_is_found_but_is_locked()
         {
-            var provider = this.CreateProvider();
+            var provider = CreateProvider();
             var lockDate = DateTime.UtcNow.AddHours(-1);
 
             redis.SetSessionState(key, new RedisSessionState()
@@ -325,7 +325,7 @@ namespace Harbour.RedisSessionStateStore.Tests
         [Fact]
         public void GetItem_should_return_data_and_extend_session_if_session_found_and_not_locked()
         {
-            var provider = this.CreateProvider();
+            var provider = CreateProvider();
 
             redis.SetSessionState(key, new RedisSessionState()
             {
@@ -341,6 +341,9 @@ namespace Harbour.RedisSessionStateStore.Tests
 
             var data = provider.GetItem(null, "1234", out locked, out lockAge, out lockId, out actions);
             var ttl = redis.GetTimeToLive(key);
+
+            Assert.NotNull(data);
+
             Assert.Equal(80, data.Timeout);
             Assert.Equal(80, ttl.TotalMinutes);
 
@@ -357,7 +360,7 @@ namespace Harbour.RedisSessionStateStore.Tests
         [Fact]
         public void GetItemExclusive_should_return_null_and_not_locked_if_no_session_item_is_found()
         {
-            var provider = this.CreateProvider();
+            var provider = CreateProvider();
 
             bool locked;
             TimeSpan lockAge;
@@ -401,7 +404,7 @@ namespace Harbour.RedisSessionStateStore.Tests
         [Fact]
         public void GetItemExclusive_should_return_data_and_lock_session_and_extend_session_if_session_found_and_not_locked()
         {
-            var provider = this.CreateProvider();
+            var provider = CreateProvider();
 
             redis.SetSessionState(key, new RedisSessionState()
             {
@@ -417,7 +420,9 @@ namespace Harbour.RedisSessionStateStore.Tests
             SessionStateActions actions;
 
             var data = provider.GetItemExclusive(null, "1234", out locked, out lockAge, out lockId, out actions);
-            
+
+            Assert.NotNull(data);
+
             AssertState(key,
                 ttl: 80,
                 locked: true,
@@ -435,6 +440,100 @@ namespace Harbour.RedisSessionStateStore.Tests
                 { "name", "Felix" },
                 { "age", 1 }
             }, data.Items);
+        }
+
+        [Theory(Skip = "Can take a while, so we don't want to run it every time.")]
+        [InlineData(100)]
+        [InlineData(1000)]
+        [InlineData(10000)]
+        public void Add_and_Remove_Documents_Serially(int numberOfDocs)
+        {
+            var provider = CreateProvider();
+
+            for (var i = 1; i <= numberOfDocs; i++)
+            {
+                var myKey = i.ToString(CultureInfo.InvariantCulture);
+
+                var item = CreateSessionStoreData(333, new Dictionary<string, object>()
+                {
+                    {"name", String.Format("Felix {0}", myKey)},
+                    {"age", i}
+                });
+
+                provider.SetAndReleaseItemExclusive(null, myKey, item, null, true);
+
+                AssertState(GetFullKey(KeyName, i),
+                    locked: false,
+                    flags: 0,
+                    timeout: 333,
+                    items: new Hashtable()
+                    {
+                        {"name", String.Format("Felix {0}", myKey)},
+                        {"age", i}
+                    });
+
+                redis.SetSessionState(GetFullKey(KeyName, i), new RedisSessionState()
+                {
+                    Locked = true,
+                    LockDate = DateTime.UtcNow,
+                    LockId = 999
+                });
+
+                provider.RemoveItem(null, myKey, 999, null);
+                Assert.False(redis.ContainsKey(GetFullKey(KeyName, i)));
+            }
+        }
+
+        [Theory(Skip = "Can take a while, so we don't want to run it every time.")]
+        [InlineData(100)]
+        [InlineData(1000)]
+        [InlineData(10000)]
+        public void Add_and_Remove_Documents_in_Batches(int numberOfDocs)
+        {
+            var provider = CreateProvider();
+
+            for (var i = 1; i <= numberOfDocs; i++)
+            {
+                var myKey = i.ToString(CultureInfo.InvariantCulture);
+
+                var item = CreateSessionStoreData(333, new Dictionary<string, object>()
+                {
+                    {"name", String.Format("Felix {0}", myKey)},
+                    {"age", i}
+                });
+
+                provider.SetAndReleaseItemExclusive(null, myKey, item, null, true);
+
+                AssertState(GetFullKey(KeyName, i),
+                    locked: false,
+                    flags: 0,
+                    timeout: 333,
+                    items: new Hashtable()
+                    {
+                        {"name", String.Format("Felix {0}", myKey)},
+                        {"age", i}
+                    });
+            }
+
+            for (var i = 1; i <= numberOfDocs; i++)
+            {
+                var myKey = i.ToString(CultureInfo.InvariantCulture);
+
+                redis.SetSessionState(GetFullKey(KeyName, i), new RedisSessionState()
+                {
+                    Locked = true,
+                    LockDate = DateTime.UtcNow,
+                    LockId = 999
+                });
+
+                provider.RemoveItem(null, myKey, 999, null);
+                Assert.False(redis.ContainsKey(GetFullKey(KeyName, i)));
+            }
+        }
+
+        private static string GetFullKey(string keyName, int keyValue)
+        {
+            return String.Format("{0}/{1}", keyName, keyValue);
         }
 
         private void AssertStateItems(IDictionary expected, ISessionStateItemCollection actual)
@@ -501,7 +600,7 @@ namespace Harbour.RedisSessionStateStore.Tests
 
             provider.Initialize(KeyName, new NameValueCollection()
             {
-                { "Host", host ?? this.Host },
+                { "Host", host ?? Host },
                 { "clientType", "basic" }
             });
 

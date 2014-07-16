@@ -1,9 +1,7 @@
-﻿using System;
+﻿using ServiceStack;
+using ServiceStack.Redis;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using ServiceStack.Redis;
-using ServiceStack.Text;
 
 namespace Harbour.RedisSessionStateStore
 {

@@ -1,16 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Web.SessionState;
+﻿using ServiceStack.Redis;
+using ServiceStack.Redis.Support.Locking;
+using System;
 using System.Collections.Specialized;
 using System.Web;
 using System.Web.Configuration;
-using ServiceStack.Redis;
-using System.Configuration.Provider;
-using System.IO;
-using System.Configuration;
-using ServiceStack.Redis.Support.Locking;
+using System.Web.SessionState;
 
 namespace Harbour.RedisSessionStateStore
 {
@@ -42,9 +36,22 @@ namespace Harbour.RedisSessionStateStore
     ///  
     ///   protected void Application_Start()
     ///   {
-    ///       // Or use your IoC container to wire this up.
-    ///       clientManager = new PooledRedisClientManager("localhost:6379");
-    ///       RedisSessionStateStoreProvider.SetClientManager(clientManager);
+    ///     AreaRegistration.RegisterAllAreas();
+    ///
+    ///     RegisterGlobalFilters(GlobalFilters.Filters);
+    ///     RegisterRoutes(RouteTable.Routes);
+    ///
+    ///     this.clientManager = new PooledRedisClientManager("172.16.83.1:6379");
+    ///     RedisSessionStateStoreProvider.SetClientManager(this.clientManager);
+    ///     RedisSessionStateStoreProvider.SetOptions(new RedisSessionStateStoreOptions()
+    ///     {
+    ///         KeySeparator = ":",
+    ///         OnDistributedLockNotAcquired =
+    ///             sessionId => Console.WriteLine("Session \"{0}\" could not establish distributed lock. " +
+    ///                                            "This most likely means you have to increase the " +
+    ///                                            "DistributedLockAcquireSeconds/DistributedLockTimeoutSeconds.",
+    ///                 sessionId)
+    ///     });
     ///   }
     ///  
     ///   protected void Application_End()
@@ -79,7 +86,7 @@ namespace Harbour.RedisSessionStateStore
 
         public RedisSessionStateStoreProvider()
         {
-            staticObjectsGetter = ctx => SessionStateUtility.GetSessionStaticObjects(ctx);
+            staticObjectsGetter = SessionStateUtility.GetSessionStaticObjects;
         }
 
         /// <summary>
@@ -121,7 +128,7 @@ namespace Harbour.RedisSessionStateStore
         {
             options = null;
         }
-        
+
         public override void Initialize(string name, NameValueCollection config)
         {
             if (String.IsNullOrWhiteSpace(name))
@@ -130,7 +137,7 @@ namespace Harbour.RedisSessionStateStore
             }
 
             this.name = name;
-            
+
             var sessionConfig = (SessionStateSection)WebConfigurationManager.GetSection("system.web/sessionState");
 
             sessionTimeoutMinutes = (int)sessionConfig.Timeout.TotalMinutes;
@@ -176,17 +183,15 @@ namespace Harbour.RedisSessionStateStore
             {
                 return new PooledRedisClientManager(host);
             }
-            else
-            {
-                return new BasicRedisClientManager(host);
-            }
+
+            return new BasicRedisClientManager(host);
         }
 
         private IRedisClient GetClient()
         {
             return clientManager.GetClient();
         }
-        
+
         /// <summary>
         /// Create a distributed lock for cases where more-than-a-transaction
         /// is used but we need to prevent another request from modifying the
@@ -201,10 +206,14 @@ namespace Harbour.RedisSessionStateStore
         {
             var lockKey = key + options.KeySeparator + "lock";
             return new DisposableDistributedLock(
-                client, lockKey, 
-                options.DistributedLockAcquisitionTimeoutSeconds.Value, 
-                options.DistributedLockTimeoutSeconds.Value
-            );
+                client, lockKey,
+                options.DistributedLockAcquisitionTimeoutSeconds.HasValue
+                    ? options.DistributedLockAcquisitionTimeoutSeconds.Value
+                    : RedisSessionStateStoreOptionDefaults.DefaultDistributedLockAcquisitionTimeoutSeconds,
+                options.DistributedLockTimeoutSeconds.HasValue
+                    ? options.DistributedLockTimeoutSeconds.Value
+                    : RedisSessionStateStoreOptionDefaults.DefaultDistributedLockTimeoutSeconds
+                );
         }
 
         private string GetSessionIdKey(string id)
@@ -236,12 +245,12 @@ namespace Harbour.RedisSessionStateStore
 
         public override void InitializeRequest(HttpContext context)
         {
-            
+
         }
 
         public override void EndRequest(HttpContext context)
         {
-            
+
         }
 
         private void UseTransaction(IRedisClient client, Action<IRedisTransaction> action)
@@ -258,10 +267,16 @@ namespace Harbour.RedisSessionStateStore
             var key = GetSessionIdKey(id);
             using (var client = GetClient())
             {
-                UseTransaction(client, transaction =>
-                {
-                    transaction.QueueCommand(c => c.ExpireEntryIn(key, TimeSpan.FromMinutes(sessionTimeoutMinutes)));
-                });
+                UseTransaction(client,
+                    transaction =>
+                    {
+                        transaction.QueueCommand(
+                            c => c.ExpireEntryIn(key, TimeSpan.FromMinutes(sessionTimeoutMinutes)));
+                        transaction.QueueCommand(
+                            c =>
+                                c.ExpireEntryIn(String.Format("{0}", id),
+                                    TimeSpan.FromMinutes(sessionTimeoutMinutes)));
+                    });
             };
         }
 
@@ -285,6 +300,7 @@ namespace Harbour.RedisSessionStateStore
                     if (RedisSessionState.TryParse(stateRaw, out state) && state.Locked && state.LockId == (int)lockId)
                     {
                         transaction.QueueCommand(c => c.Remove(key));
+                        transaction.QueueCommand(c => c.Remove(String.Format("{0}", id)));
                     }
                 });
             }
@@ -381,7 +397,7 @@ namespace Harbour.RedisSessionStateStore
                     var state = new RedisSessionState()
                     {
                         Items = (SessionStateItemCollection)item.Items,
-                        Timeout = item.Timeout,
+                        Timeout = item.Timeout
                     };
 
                     var key = GetSessionIdKey(id);
@@ -426,6 +442,12 @@ namespace Harbour.RedisSessionStateStore
             {
                 transaction.QueueCommand(c => c.SetRangeInHashRaw(key, state.ToMap()));
                 transaction.QueueCommand(c => c.ExpireEntryIn(key, TimeSpan.FromMinutes(state.Timeout)));
+                transaction.QueueCommand(
+                    c =>
+                        c.ExpireEntryIn(
+                            String.Format("{0}",
+                                key.Replace(String.Format("{0}{1}", name, options.KeySeparator), String.Empty)),
+                            TimeSpan.FromMinutes(sessionTimeoutMinutes)));
             });
         }
 

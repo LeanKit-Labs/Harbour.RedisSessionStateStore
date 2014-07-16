@@ -1,8 +1,6 @@
-﻿using System;
+﻿using ServiceStack.Redis;
+using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using ServiceStack.Redis;
 
 namespace Harbour.RedisSessionStateStore
 {
@@ -10,10 +8,8 @@ namespace Harbour.RedisSessionStateStore
     {
         public static void QueueCommandMap(this IRedisTransaction transaction, Func<IRedisClient, byte[][]> command, Action<IDictionary<string, byte[]>> onSuccessCallback)
         {
-            transaction.QueueCommand(command, (multiData) =>
-            {
-                onSuccessCallback(RedisClientExtensions.MultiByteArrayToDictionary(multiData));
-            });
+            transaction.QueueCommand(command,
+                (multiData) => onSuccessCallback(RedisClientExtensions.MultiByteArrayToDictionary(multiData)));
         }
     }
 }
