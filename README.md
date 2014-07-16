@@ -1,61 +1,38 @@
-Harbour.RedisSessionStateStore
-==============================
+This code is derivative of [Harbour.RedisSessionStateStore](https://github.com/TheCloudlessSky/Harbour.RedisSessionStateStore). Please go there to see the readme of inner workings and whatnot. I'll be pushing stuff back there soon, I promise. :)
 
-This is a [Redis](http://redis.io/) based [SessionStateStoreProvider](http://msdn.microsoft.com/en-us/library/ms178587.aspx)
-written in C# using [ServiceStack.Redis](https://github.com/ServiceStack/ServiceStack.Redis).
-
-Installation
 ------------
 
-1. You can either install using NuGet: `PM> Install-Package Harbour.RedisSessionStateStore`
-2. Or build and install from source: `msbuild .\build\build.proj`
-
-Usage
------
-
-Configure your `web.config` to use the session state provider:
+Configure the session state provider in your web.config as such:
 
 ```xml
 <system.web>
   <sessionState mode="Custom" customProvider="RedisSessionStateProvider">
     <providers>
       <clear />
-      <add name="RedisSessionStateProvider" 
-           type="Harbour.RedisSessionStateStore.RedisSessionStateStoreProvider" 
-           host="localhost:6379" clientType="pooled" />
+      <add name="RedisSessionStateProvider" type="Harbour.RedisSessionStateStore.RedisSessionStateStoreProvider" />
     </providers>
   </sessionState>
 </system.web>
 ```
 
-This configuration will use a `PooledRedisClientManager` and use the default host
-and port (localhost:6379). Alternatively you can use the `host` attribute 
-to set a custom host/port. If you wish to change the client manager type to
-`BasicRedisClientManager`, you can set the `clientType="basic"`.
-
-If you require that a custom `IClientsManager` be configured (for example if you're
-using an IoC container or you wish to only have one `IClientsManager` for your
-whole application), you can do the following when the application starts:
+Then, wire up the provider in global.asax:
 
 ```csharp
-private IRedisClientsManager clientManager;
+private readonly IRedisClientsManager _clientManager = new PooledRedisClientManager(new[] { "ipAddress:port" });
+private const string KeySeparator = @":";
 
 protected void Application_Start()
 {
     // Or use your IoC container to wire this up.
-    this.clientManager = new PooledRedisClientManager("localhost:6379");
-    RedisSessionStateStoreProvider.SetClientManager(this.clientManager);
-
-    // Configure options on the provider.
+	RedisSessionStateStoreProvider.SetClientManager(_clientManager);
     RedisSessionStateStoreProvider.SetOptions(new RedisSessionStateStoreOptions()
     {
-        KeySeparator = ":",
-        OnDistributedLockNotAcquired = sessionId =>
-        {
-            Console.WriteLine("Session \"{0}\" could not establish distributed lock. " +
-                              "This most likely means you have to increase the " +
-                              "DistributedLockAcquireSeconds/DistributedLockTimeoutSeconds.", sessionId);
-        }
+        KeySeparator = KeySeparator,
+        OnDistributedLockNotAcquired =
+            sessionId => Console.WriteLine("Session \"{0}\" could not establish distributed lock. " +
+                                           "This most likely means you have to increase the " +
+                                           "DistributedLockAcquireSeconds/DistributedLockTimeoutSeconds.",
+                sessionId)
     });
 }
 
@@ -63,22 +40,19 @@ protected void Application_End()
 {
     this.clientManager.Dispose();
 }
+
+// This adds a new object to track the ProviderUserKey value into another redis doc.
+// It uses the session ID key only, not the prefix or key separators, since other apps
+// may not have access to global.asax or web.config info.
+// This doc is managed internally by the session state provider and has its timeout extended
+// or is deleted appropriately in conjunction with actions on the actual session object.
+protected void Session_Start(object sender, EventArgs e)
+{
+    using (var client = _clientManager.GetClient())
+    {
+        client.Add(
+            String.Format("{0}", Session.SessionID),
+            User.Identity.GetUserId(), DateTime.Now.AddMinutes(Session.Timeout));
+    }
+}
 ```
-
-Changelog
----------
-
-### v1.3.0
-- Use a distributed lock rather than the WATCH/UNWATCH pattern because
-  it was causing issues.
-- Add the ability to configure the provider with static `SetOptions(options)`.
-
-### v1.2.0
-- Always ensure UNWATCH is called.
-- Retry a transaction once if it fails.
-
-### v1.1.0
-- Add WATCH/UNWATCH pattern for transactions.
-
-### v1.0.0
-- Initial release.
